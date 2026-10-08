@@ -43,6 +43,9 @@ services:
       APP_MOSTRADOR_PASSWORD: ${APP_MOSTRADOR_PASSWORD}
       APP_DUENA_PASSWORD: ${APP_DUENA_PASSWORD}
       TZ: America/Monterrey
+    volumes:
+      # El código se monta en vivo: Streamlit recarga al guardar (runOnSave)
+      - ./app:/app:ro
     ports:
       # ngrok corre en la computadora y apunta a localhost:8501
       - "127.0.0.1:8501:8501"

@@ -1,0 +1,14 @@
+[client]
+# No mostrar errores internos (SQL, rutas) en pantalla: solo un mensaje genérico
+showErrorDetails = false
+toolbarMode = "minimal"
+
+[server]
+enableXsrfProtection = true
+runOnSave = true
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+primaryColor = "#b5651d"
