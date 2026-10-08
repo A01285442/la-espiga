@@ -6,7 +6,7 @@ import streamlit as st
 
 from lib.auth import requerir_rol
 from lib.db import leer
-from lib.formato import fecha_larga, hoy, manana
+from lib.formato import fecha_larga, hoy, manana, md
 
 requerir_rol("duena", "mostrador")
 
@@ -34,7 +34,7 @@ if encargos.empty:
 else:
     for n, e in enumerate(encargos.itertuples(), start=1):
         listo = " ✅ ya está listo" if e.estado == "listo" else ""
-        st.markdown(f"### {n}. {e.descripcion}\nPara **{e.cliente}** · encargo #{e.id}{listo}")
+        st.markdown(md(f"### {n}. {e.descripcion}\nPara **{e.cliente}** · encargo #{e.id}{listo}"))
 
     lista = "\n".join(f"{n}. {e.descripcion} ({e.cliente})" for n, e in enumerate(encargos.itertuples(), 1))
     mensaje = f"Encargos para {fecha_larga(dia)}:\n{lista}"

@@ -21,6 +21,11 @@ def pesos(valor) -> str:
     return f"${valor:,.0f}" if valor == int(valor) else f"${valor:,.2f}"
 
 
+def md(texto: str) -> str:
+    """Escapa '$' para st.markdown y avisos: con dos '$' Streamlit dibuja una fórmula (LaTeX)."""
+    return str(texto).replace("$", r"\$")
+
+
 def fecha_larga(d: date) -> str:
     return f"{DIAS[d.weekday()]} {d.day} de {MESES[d.month - 1]}"
 

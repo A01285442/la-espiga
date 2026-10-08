@@ -6,7 +6,7 @@ from sqlalchemy.exc import DBAPIError
 
 from lib.auth import requerir_rol
 from lib.db import leer, mensaje_error, transaccion
-from lib.formato import ESTADOS, cuando, fecha_corta, hoy, manana, normalizar, pesos, telefono
+from lib.formato import ESTADOS, cuando, fecha_corta, hoy, manana, md, normalizar, pesos, telefono
 
 usuario = requerir_rol("duena", "mostrador")
 es_duena = usuario["rol"] == "duena"
@@ -20,7 +20,7 @@ st.title("🎂 Encargos")
 
 # Mensaje de la acción anterior (sobrevive al st.rerun)
 if aviso := st.session_state.pop("enc_aviso", None):
-    st.success(aviso)
+    st.success(md(aviso))
 
 
 def guardar_y_recargar(aviso: str, sentencias: list[tuple[str, dict]], mantener_abierto: int | None = None) -> None:
@@ -35,7 +35,7 @@ def guardar_y_recargar(aviso: str, sentencias: list[tuple[str, dict]], mantener_
             for sql, params in sentencias:
                 conn.execute(text(sql), params)
     except DBAPIError as error:
-        st.error(mensaje_error(error))
+        st.error(md(mensaje_error(error)))
         return
     st.session_state["enc_aviso"] = aviso
     st.session_state.pop("tabla_pendientes", None)
@@ -97,14 +97,14 @@ if vista == POR_ENTREGAR:
                 st.session_state["enc_abierto"] = None
                 st.session_state.pop("tabla_pendientes", None)
                 st.rerun()
-            st.write(f"**{enc.descripcion}**")
+            st.write(md(f"**{enc.descripcion}**"))
             st.write(f"Entrega: {fecha_corta(enc.fecha_entrega)} · Tel. {enc.telefono or 'sin teléfono'}")
             m1, m2, m3 = st.columns(3)
             m1.metric("Total", pesos(enc.total))
             m2.metric("Pagado", pesos(enc.pagado))
             m3.metric("Falta", pesos(saldo))
             if enc.requiere_revision:
-                st.warning(f"Revisar con Carmen: {enc.nota_revision}")
+                st.warning(md(f"Revisar con Carmen: {enc.nota_revision}"))
 
             col_pago, col_estado = st.columns(2)
             with col_pago:
@@ -207,7 +207,7 @@ if vista == NUEVO:
     for e in errores:
         st.error(e)
     if total > 0:
-        st.info(f"Saldo a cobrar al entregar: **{pesos(total - anticipo)}**")
+        st.info(md(f"Saldo a cobrar al entregar: **{pesos(total - anticipo)}**"))
 
     listo = puede_guardar_cliente and descripcion and total > 0 and not errores
     if st.button("Guardar encargo", type="primary", disabled=not listo):
@@ -228,7 +228,7 @@ if vista == NUEVO:
                         VALUES (:e, :m, 'anticipo', :mp, :u)"""),
                         {"e": encargo_id, "m": anticipo, "mp": METODOS[metodo], "u": usuario["id"]})
         except DBAPIError as error:
-            st.error(mensaje_error(error))
+            st.error(md(mensaje_error(error)))
         else:
             st.session_state["enc_limpiar"] = True
             st.session_state["enc_aviso"] = (

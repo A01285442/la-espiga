@@ -10,6 +10,7 @@ Así, si una pantalla tuviera un error, la base igual niega lo que no correspond
 import logging
 import os
 from contextlib import contextmanager
+from decimal import Decimal
 
 import pandas as pd
 import streamlit as st
@@ -56,7 +57,13 @@ def transaccion():
 
 def leer(sql: str, **params) -> pd.DataFrame:
     with transaccion() as conn:
-        return pd.read_sql(text(sql), conn, params=params)
+        df = pd.read_sql(text(sql), conn, params=params)
+    # Postgres numeric llega como Decimal; para sumar y comparar en pandas conviene float.
+    # (Los montos son de pesos con 2 decimales: float no pierde nada a esta escala.)
+    for columna in df.columns:
+        if df[columna].map(lambda v: isinstance(v, Decimal)).any():
+            df[columna] = df[columna].astype(float)
+    return df
 
 
 def ejecutar(sql: str, **params):

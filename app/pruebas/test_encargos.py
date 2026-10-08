@@ -45,7 +45,7 @@ def test_alta_de_encargo_con_cliente_nuevo_y_anticipo():
     boton(at, "Guardar encargo").click().run()
 
     assert not at.exception
-    assert "Falta cobrar $350" in at.success[0].value
+    assert r"Falta cobrar \$350" in at.success[0].value     # '$' escapado para markdown
 
     with motor("duena").connect() as conn:
         fila = conn.execute(text("""SELECT e.total, e.pagado, e.saldo, e.estado, c.telefono
