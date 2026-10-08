@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>La Espiga Dorada — Entrega</title>
+<style>
+  @page { size: Letter; margin: 11mm 13mm; }
+  :root { --tinta: #222; --suave: #5a5a5a; --acento: #9a4f12; --linea: #ddd; --fondo: #faf6f1; }
+  * { box-sizing: border-box; }
+  body { font: 8.6pt/1.36 "Segoe UI", system-ui, sans-serif; color: var(--tinta); margin: 0; }
+  h1 { font-size: 15pt; margin: 0; color: var(--acento); }
+  h2 { font-size: 10pt; margin: 7px 0 3px; color: var(--acento); border-bottom: 1px solid var(--linea); padding-bottom: 1px; }
+  p { margin: 2px 0 4px; }
+  ul, ol { margin: 2px 0 4px; padding-left: 15px; }
+  li { margin: 1px 0; }
+  code { font: 7.8pt Consolas, monospace; background: #f1ece6; padding: 0 2px; border-radius: 2px; }
+  .cabecera { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid var(--acento); padding-bottom: 4px; }
+  .cabecera .datos { text-align: right; color: var(--suave); font-size: 8pt; }
+  .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .caja { background: var(--fondo); border-left: 3px solid var(--acento); padding: 3px 7px; margin: 4px 0; }
+  .diagrama { border: 1px solid var(--linea); border-radius: 4px; padding: 4px; margin: 3px 0; }
+  .diagrama svg { max-width: 100%; height: auto; }
+  .salto { break-before: page; }
+  table { border-collapse: collapse; width: 100%; font-size: 8pt; }
+  td, th { border-bottom: 1px solid var(--linea); padding: 1px 4px; text-align: left; vertical-align: top; }
+  th { color: var(--suave); font-weight: 600; }
+  .pendiente { background: #fff3cd; padding: 0 3px; }
+</style>
+</head>
+<body>
+
+<div class="cabecera">
+  <div>
+    <h1>Panadería La Espiga Dorada — control de operación</h1>
+    <div>Caso práctico Consultor Developer · Ocean X</div>
+  </div>
+  <div class="datos">
+    Adrián Galván Salgado · 9 de octubre de 2026<br>
+    App: <span class="pendiente">URL_NGROK</span> · Repo: github.com/A01285442/la-espiga (privado)<br>
+    Usuarios de prueba: enviados en el mensaje de entrega (no en este documento)
+  </div>
+</div>
+
+<h2>1. Cómo modelé los datos</h2>
+<div class="diagrama"><img src="diagrama.svg" alt="Diagrama de tablas y relaciones" style="width:100%"></div>
+<div class="dos">
+<ul>
+  <li><b>Un cliente es un cliente</b> aunque esté escrito de 4 formas: una fila en <code>clientes</code> y sus variantes en <code>cliente_alias</code> (17 formas → 6 negocios). Igual con productos (20 nombres → 15). Un mismo cliente puede encargar pasteles y tener crédito (la Escuela, El Portal).</li>
+  <li><b>Los saldos nunca se guardan: se calculan</b> desde los movimientos. Encargo: total − pagos. Crédito: saldo inicial + entregas − abonos. No puede existir un "falta 200" que no cuadre.</li>
+</ul>
+<ul>
+  <li><b>La base hace cumplir las reglas</b>: <code>CHECK</code> (montos &gt; 0, teléfono de 10 dígitos, entrega ≥ pedido) y triggers (no cobrar más que el total, precio tomado del catálogo, mostrador no cancela encargos). Cálculos en vistas (<code>v_encargos</code>, <code>v_saldos_credito</code>, <code>v_ventas_diarias</code>…). 15 tablas; <code>usuarios</code> se relaciona con todo vía <code>capturado_por</code>/<code>registrado_por</code>.</li>
+  <li><b>Limpieza reproducible</b> (<code>seed/limpiar_y_cargar.py</code>): fechas texto, "$16", "520 pesos", totales vacíos; si aparece un nombre desconocido el script se detiene en vez de adivinar. Cada decisión queda en <code>docs/reporte_limpieza.md</code>.</li>
+</ul>
+</div>
+
+<h2>2. Qué construí, en qué orden y por qué</h2>
+<div class="dos">
+<ol start="0">
+  <li><b>Esquema, permisos y carga del Excel.</b> Modelo y seguridad son lo que más pesa, y todo depende de datos limpios.</li>
+  <li><b>Encargos + "Mañana sale".</b> Es donde ya se perdió dinero (2 pasteles) y donde la información vive en el teléfono de Lupita. Anticipo y saldo, cobro al entregar, atrasados en rojo, lista para Toño por WhatsApp.</li>
+  <li><b>Clientes de crédito.</b> $15,380 vencido al cargar los datos. Saldo por cliente, "toca cobrar", estado de cuenta, días de crédito por cliente (La Fogata 15).</li>
+</ol>
+<ol start="3">
+  <li><b>Ventas de mostrador + Resumen.</b> Captura desde el catálogo (sin escribir nombres) y el resumen que Carmen hoy arma sumando columnas.</li>
+  <li><b>Compras e insumos</b> (quedó tiempo): duplicados por confirmar, facturas por pedir, conteo de bodega con mínimos y aviso de qué pedir.</li>
+</ol>
+</div>
+<div class="caja"><b>Hallazgo:</b> el Excel de septiembre registra <b>$92,860</b> (mostrador $36,790 + encargos $29,460 + crédito $26,610) contra ~$180,000 que Carmen factura, y compras por $108,339. La mitad de la venta nunca se anota: por eso "no le cuadra con la caja". Hay 3 días marcados "se fue la luz".</div>
+
+<h2 class="salto">3. Qué dejé fuera a propósito y cómo seguiría</h2>
+<table>
+  <tr><th style="width:27%">Fuera</th><th>Por qué / segunda etapa</th></tr>
+  <tr><td><b>Costo por pastel y margen</b> (petición 5)</td><td>Sin recetas no hay costo honesto; inventarlo sería peor que no tenerlo. Ya existe la tabla <code>receta_insumos</code>. Etapa 2: 1 h con Toño y Memo para los 5 productos que más venden, capturar en compras el precio por insumo (kg de harina, huevo) y calcular costo por pieza y margen.</td></tr>
+  <tr><td><b>Avisos automáticos</b> (WhatsApp/correo)</td><td>Hoy los avisos están en pantalla y con botones <code>wa.me</code> (sin costo). Etapa 2: un mensaje diario programado a Carmen (cobros, insumos) y a Toño (encargos de mañana).</td></tr>
+  <tr><td><b>Corte de caja</b></td><td>Registrar efectivo al cierre y compararlo con lo capturado: es lo que hará que "le cuadre la caja".</td></tr>
+  <tr><td><b>Operación sin luz / sin internet</b></td><td>Captura en papel con folio y recaptura; o app instalable con modo offline.</td></tr>
+  <tr><td><b>Hosting</b></td><td>Hoy corre en Docker en mi computadora y sale a internet por un túnel HTTPS (ngrok), para no generar costos. Etapa 2: el mismo <code>docker-compose</code> en un servidor, o Supabase + Vercel (el esquema ya es Postgres).</td></tr>
+  <tr><td><b>Detalles</b></td><td>Rol "producción" para Toño; que recargar la página no cierre sesión (cookie firmada); edición de catálogo de productos y precios desde la app.</td></tr>
+</table>
+
+<h2>4. Supuestos donde Carmen fue ambigua y qué le preguntaría</h2>
+<div class="dos">
+<div>
+<b>Supuestos (todos están en el código y en el reporte de limpieza)</b>
+<ul>
+  <li>Los negocios abonan a su cuenta, no a una nota: el pago cubre primero lo más viejo.</li>
+  <li>Crédito a 7 días (cobro semanal), La Fogata a 15. Don Chuy inicia con $2,400 de agosto, marcado "por confirmar".</li>
+  <li>"SI", "pagó en efectivo", "transferencia" = se liquidó al entregar. "falta 200" aparece 5 veces y nunca cuadra con los números: respeté los números y lo marqué para revisar.</li>
+  <li>Encargos con fecha pasada = entregados. Mostrador sí ve el saldo de un encargo (lo cobra al entregar), no el crédito ni los totales.</li>
+  <li>"Conchas" sin sabor se guardan aparte y ya no se pueden capturar. Compras sospechosas se marcan, no se borran.</li>
+</ul>
+</div>
+<div>
+<b>Preguntas que hice por WhatsApp</b>
+<ol><li class="pendiente">[pregunta 1 y respuesta]</li><li class="pendiente">[pregunta 2 y respuesta]</li><li class="pendiente">[pregunta 3 y respuesta]</li></ol>
+<b>Para la siguiente visita</b>
+<ul>
+  <li>¿Los 2 pares de clientes con el mismo teléfono son la misma familia?</li>
+  <li>¿Cuánto debe realmente Don Chuy de agosto? ¿Dónde está la libreta de encargos de agosto?</li>
+  <li>¿Las 2 cargas de gas del 16/09 y los 3 tickets de Costco del 19/09 son reales?</li>
+  <li>¿Quién captura el conteo de bodega? ¿Qué mínimo quiere para la manteca?</li>
+</ul>
+</div>
+</div>
+
+<h2>5. Cómo protegí los datos</h2>
+<div class="dos">
+<ul>
+  <li><b>La seguridad está en la base, no en los botones.</b> Tres roles de Postgres: <code>app_login</code> (solo puede ejecutar <code>autenticar()</code>), <code>app_mostrador</code> y <code>app_duena</code>. La app se conecta con el rol de quien inició sesión. Permisos <code>GRANT</code> por tabla y por columna: mostrador recibe <i>permission denied</i> si intenta leer compras, crédito, insumos o totales de venta, borrar, o cambiar el total de un encargo.</li>
+  <li>Vistas con <code>security_invoker</code> (si no, una vista se salta los permisos). Contraseñas con bcrypt (<code>pgcrypto</code>); nadie puede leer los hashes, ni la dueña.</li>
+</ul>
+<ul>
+  <li><b>En la app:</b> menú por rol y además cada página verifica el rol en el servidor (entrar por URL directa no sirve). Streamlit no expone una API REST. Bloqueo tras 5 intentos fallidos, mismo mensaje si el usuario no existe, errores sin detalles internos.</li>
+  <li><b>Infraestructura:</b> la app no tiene la contraseña de administrador; puertos solo en <code>localhost</code>; acceso externo solo por HTTPS; secretos en <code>.env</code> fuera de git. <b>Probado:</b> 32 verificaciones en <code>db/pruebas/permisos.sql</code> y 26 pruebas de la app.</li>
+  <li><b>Con más tiempo:</b> segundo factor para la dueña, bitácora de quién cambió qué, respaldos diarios cifrados, límite de intentos por IP.</li>
+</ul>
+</div>
+
+<h2>6. Cómo usé la IA</h2>
+<p>Usé <b>Claude Code</b> como agente en la terminal. Yo decidí el stack (Postgres y Streamlit en Docker, sin costos), las prioridades y los supuestos; le pedí el plan, el esquema y las políticas de permisos, el script de limpieza, las páginas y las pruebas, y revisé cada cambio antes de hacer commit. <b>Lo que generó mal y corregimos:</b></p>
+<div class="dos">
+<ul>
+  <li>Escribió a mano los teléfonos de los clientes y le puso a Fernanda Garza el de Jorge Salinas → ahora se toman del Excel y el script reporta teléfonos compartidos.</li>
+  <li>Interpretó "Factura: no" como "no requiere factura" → se cambió a "sin factura".</li>
+  <li>Usó pestañas (<code>st.tabs</code>) que regresaban solas a la primera al elegir un cliente → selector que conserva la vista.</li>
+</ul>
+<ul>
+  <li>Tras cobrar un encargo, el panel se cerraba (Streamlit reinicia la selección de la tabla) → el encargo abierto se guarda en la sesión.</li>
+  <li>Textos con dos "$" se dibujaban como fórmula matemática → función <code>md()</code> que escapa el signo.</li>
+  <li><b>Cómo lo verifiqué:</b> pruebas contra la base real, recorrido en navegador (también en celular) y cifras cruzadas: la venta calculada por dos caminos, y el saldo vencido en Python = vista SQL.</li>
+</ul>
+</div>
+
+
+</body>
+</html>
