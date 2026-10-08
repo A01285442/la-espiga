@@ -1,0 +1,51 @@
+name: la-espiga
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_ADMIN_USER}
+      POSTGRES_PASSWORD: ${DB_ADMIN_PASSWORD}
+      # Contraseñas de los roles de la app (los crea db/init/00_roles.sh)
+      APP_LOGIN_PASSWORD: ${APP_LOGIN_PASSWORD}
+      APP_MOSTRADOR_PASSWORD: ${APP_MOSTRADOR_PASSWORD}
+      APP_DUENA_PASSWORD: ${APP_DUENA_PASSWORD}
+      # "Hoy" y "mañana" deben ser los de Monterrey, no UTC
+      TZ: America/Monterrey
+      PGTZ: America/Monterrey
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # Solo se ejecutan cuando el volumen está vacío (docker compose down -v para reiniciar)
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      # Solo accesible desde esta computadora (para el script de carga), nunca desde internet
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_ADMIN_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: ./app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      # La app NO recibe la contraseña de administrador: solo los tres roles limitados
+      APP_LOGIN_PASSWORD: ${APP_LOGIN_PASSWORD}
+      APP_MOSTRADOR_PASSWORD: ${APP_MOSTRADOR_PASSWORD}
+      APP_DUENA_PASSWORD: ${APP_DUENA_PASSWORD}
+      TZ: America/Monterrey
+    ports:
+      # ngrok corre en la computadora y apunta a localhost:8501
+      - "127.0.0.1:8501:8501"
+
+volumes:
+  db_data:
