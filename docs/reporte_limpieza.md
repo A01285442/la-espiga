@@ -1,6 +1,6 @@
 # Reporte de limpieza del Excel
 
-Generado por `seed/limpiar_y_cargar.py` el 08/10/2026 16:44.
+Generado por `seed/limpiar_y_cargar.py` el 08/10/2026 17:04.
 
 ## Cifras de control
 

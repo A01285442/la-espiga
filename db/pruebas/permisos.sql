@@ -95,6 +95,27 @@ BEGIN
         RAISE EXCEPTION 'FALLA: el precio no salió del catálogo';
     END IF;
     RAISE NOTICE 'ok  precio de la línea tomado del catálogo = 18';
+
+    -- Mostrador no cancela ni reabre encargos
+    SET LOCAL ROLE app_mostrador;
+    UPDATE encargos SET estado = 'listo' WHERE id = v_enc;
+    RAISE NOTICE 'ok  mostrador puede marcar listo';
+    BEGIN
+        UPDATE encargos SET estado = 'cancelado' WHERE id = v_enc;
+        RAISE EXCEPTION 'FALLA: mostrador canceló un encargo';
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM LIKE 'FALLA%' THEN RAISE; END IF;
+        RAISE NOTICE 'ok  mostrador no puede cancelar: %', SQLERRM;
+    END;
+    UPDATE encargos SET estado = 'entregado', entregado_en = now() WHERE id = v_enc;
+    BEGIN
+        UPDATE encargos SET estado = 'pendiente' WHERE id = v_enc;
+        RAISE EXCEPTION 'FALLA: mostrador reabrió un encargo entregado';
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM LIKE 'FALLA%' THEN RAISE; END IF;
+        RAISE NOTICE 'ok  mostrador no puede reabrir: %', SQLERRM;
+    END;
+    RESET ROLE;
 END $$;
 
 ROLLBACK;

@@ -7,12 +7,16 @@ La app nunca usa al administrador. Cada persona entra con el rol que le toca:
 Así, si una pantalla tuviera un error, la base igual niega lo que no corresponde.
 """
 
+import logging
 import os
 from contextlib import contextmanager
 
 import pandas as pd
 import streamlit as st
+from psycopg import errors as pg_errors
 from sqlalchemy import URL, create_engine, text
+
+logger = logging.getLogger("espiga")
 
 _PASSWORD_ENV = {
     "login": "APP_LOGIN_PASSWORD",
@@ -60,3 +64,22 @@ def ejecutar(sql: str, **params):
     with transaccion() as conn:
         resultado = conn.execute(text(sql), params)
         return resultado.mappings().first() if resultado.returns_rows else None
+
+
+def mensaje_error(error: Exception) -> str:
+    """Traduce un error de la base a algo que Carmen entienda, sin filtrar detalles internos.
+
+    Solo se muestra textual el mensaje de nuestros propios RAISE EXCEPTION
+    (los escribimos en español para eso). El detalle completo va al log.
+    """
+    logger.warning("Error de base de datos: %s", error)
+    original = getattr(error, "orig", error)
+    if isinstance(original, pg_errors.RaiseException):
+        return original.diag.message_primary
+    if isinstance(original, pg_errors.UniqueViolation):
+        return "Ya existe un registro con ese nombre."
+    if isinstance(original, pg_errors.CheckViolation):
+        return "Algún dato no es válido. Revisa fechas, montos y teléfono."
+    if isinstance(original, pg_errors.InsufficientPrivilege):
+        return "No tienes permiso para hacer esto."
+    return "No se pudo guardar. Intenta de nuevo."

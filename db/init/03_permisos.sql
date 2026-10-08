@@ -9,7 +9,8 @@ REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
 -- Postgres da EXECUTE a PUBLIC por default en toda función nueva.
 REVOKE EXECUTE ON FUNCTION
     autenticar(text, text), normalizar(text),
-    validar_pago_encargo(), validar_cliente_credito(), fijar_precio_linea()
+    validar_pago_encargo(), validar_cliente_credito(), fijar_precio_linea(),
+    validar_cambio_encargo()
 FROM PUBLIC;
 
 GRANT USAGE ON SCHEMA public TO app_login, app_mostrador, app_duena;

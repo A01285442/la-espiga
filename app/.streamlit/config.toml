@@ -6,6 +6,8 @@ toolbarMode = "minimal"
 [server]
 enableXsrfProtection = true
 runOnSave = true
+# En Windows los cambios en carpetas montadas no generan eventos: revisar por sondeo
+fileWatcherType = "poll"
 
 [browser]
 gatherUsageStats = false

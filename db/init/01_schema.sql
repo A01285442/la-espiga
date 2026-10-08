@@ -187,6 +187,27 @@ BEGIN
     RETURN NEW;
 END $$;
 
+-- Mostrador puede marcar listo/entregado y cambiar la fecha, pero cancelar
+-- o tocar un encargo ya cerrado es decisión de la dueña.
+-- (Sin SECURITY DEFINER a propósito: current_user debe ser quien hace el cambio.)
+CREATE FUNCTION validar_cambio_encargo() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF current_user = 'app_mostrador' THEN
+        IF OLD.estado IN ('entregado', 'cancelado') THEN
+            RAISE EXCEPTION 'Solo la dueña puede modificar un encargo entregado o cancelado';
+        END IF;
+        IF NEW.estado = 'cancelado' THEN
+            RAISE EXCEPTION 'Solo la dueña puede cancelar un encargo';
+        END IF;
+    END IF;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER encargos_validar_cambio
+BEFORE UPDATE ON encargos
+FOR EACH ROW EXECUTE FUNCTION validar_cambio_encargo();
+
 CREATE TRIGGER pagos_encargo_validar
 BEFORE INSERT OR UPDATE ON pagos_encargo
 FOR EACH ROW EXECUTE FUNCTION validar_pago_encargo();
