@@ -123,17 +123,16 @@
 </div>
 
 <h2>6. Cómo usé la IA</h2>
-<p>Usé <b>Claude Code</b> como agente en la terminal. Yo decidí el stack (Postgres y Streamlit en Docker, sin costos), las prioridades y los supuestos; le pedí el plan, el esquema y las políticas de permisos, el script de limpieza, las páginas y las pruebas, y revisé cada cambio antes de hacer commit. <b>Lo que generó mal y corregimos:</b></p>
+<p>Usé <b>Claude Code</b> como agente en la terminal. Yo decidí el stack (Postgres y Streamlit en Docker, sin costos), las prioridades y los supuestos; le pedí el plan, el esquema y las políticas de permisos, el script de limpieza, las páginas y las pruebas, y revisé cada cambio antes de hacer commit. Al ver la primera versión pedí un <b>rediseño</b> (sin emojis, caja tipo punto de venta, cobranza desde la tabla de clientes, subpestañas): se hizo en una branch aparte, lo revisé en el navegador y lo uní cuando lo aprobé. <b>Lo que generó mal y corregimos:</b></p>
 <div class="dos">
 <ul>
   <li>Escribió a mano los teléfonos de los clientes y le puso a Fernanda Garza el de Jorge Salinas → ahora se toman del Excel y el script reporta teléfonos compartidos.</li>
   <li>Interpretó "Factura: no" como "no requiere factura" → se cambió a "sin factura".</li>
-  <li>Usó pestañas (<code>st.tabs</code>) que regresaban solas a la primera al elegir un cliente → selector que conserva la vista.</li>
+  <li>Las pestañas y el encargo abierto se reiniciaban al recargar → la vista y el encargo se guardan en la sesión. Textos con dos "$" salían como fórmula → <code>md()</code> escapa el signo.</li>
 </ul>
 <ul>
-  <li>Tras cobrar un encargo, el panel se cerraba (Streamlit reinicia la selección de la tabla) → el encargo abierto se guarda en la sesión.</li>
-  <li>Textos con dos "$" se dibujaban como fórmula matemática → función <code>md()</code> que escapa el signo.</li>
-  <li><b>Cómo lo verifiqué:</b> pruebas contra la base real, recorrido en navegador (también en celular) y cifras cruzadas: la venta calculada por dos caminos, y el saldo vencido en Python = vista SQL.</li>
+  <li><b>En el rediseño:</b> el menú superior de Streamlit 1.65 no se dibujaba → barra de menú propia. Y "Por entregar" fallaba si había encargos pendientes (una variable pisaba a otra) → corregido y cubierto por una prueba.</li>
+  <li><b>Cómo lo verifiqué:</b> pruebas contra la base real (comparan con la base, no con cifras fijas), recorrido en navegador en escritorio y celular, y cifras cruzadas: la venta calculada por dos caminos, y el saldo vencido en Python = vista SQL.</li>
 </ul>
 </div>
 
