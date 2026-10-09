@@ -58,11 +58,11 @@
 <div class="dos">
 <ol start="0">
   <li><b>Esquema, permisos y carga del Excel.</b> Modelo y seguridad son lo que más pesa, y todo depende de datos limpios.</li>
-  <li><b>Encargos + "Mañana sale".</b> Es donde ya se perdió dinero (2 pasteles) y donde la información vive en el teléfono de Lupita. Anticipo y saldo, cobro al entregar, atrasados en rojo, lista para Toño por WhatsApp.</li>
-  <li><b>Clientes de crédito.</b> $15,380 vencido al cargar los datos. Saldo por cliente, "toca cobrar", estado de cuenta, días de crédito por cliente (La Fogata 15).</li>
+  <li><b>Encargos con "Urgentes".</b> Es donde ya se perdió dinero (2 pasteles) y donde la información vive en el teléfono de Lupita. Anticipo y saldo, cobro al entregar, atrasados en rojo, lista para Toño por WhatsApp.</li>
+  <li><b>Clientes de crédito.</b> $15,380 vencido al cargar los datos. Tabla de clientes con botón Recordar (WhatsApp con monto ajustable), estado de cuenta, días de crédito por cliente (La Fogata 15).</li>
 </ol>
 <ol start="3">
-  <li><b>Ventas de mostrador + Resumen.</b> Captura desde el catálogo (sin escribir nombres) y el resumen que Carmen hoy arma sumando columnas.</li>
+  <li><b>Caja + Resumen.</b> Ticket por cliente con buscador y secciones del catálogo, total en pantalla y un clic para cobrar (cada cobro es una venta); y el resumen que Carmen hoy arma sumando columnas.</li>
   <li><b>Compras e insumos</b> (quedó tiempo): duplicados por confirmar, facturas por pedir, conteo de bodega con mínimos y aviso de qué pedir.</li>
 </ol>
 </div>
@@ -117,7 +117,7 @@
 </ul>
 <ul>
   <li><b>En la app:</b> menú por rol y además cada página verifica el rol en el servidor (entrar por URL directa no sirve). Streamlit no expone una API REST. Bloqueo tras 5 intentos fallidos, mismo mensaje si el usuario no existe, errores sin detalles internos.</li>
-  <li><b>Infraestructura:</b> la app no tiene la contraseña de administrador; puertos solo en <code>localhost</code>; acceso externo solo por HTTPS; secretos en <code>.env</code> fuera de git. <b>Probado:</b> 32 verificaciones en <code>db/pruebas/permisos.sql</code> y 26 pruebas de la app.</li>
+  <li><b>Infraestructura:</b> la app no tiene la contraseña de administrador; puertos solo en <code>localhost</code>; acceso externo solo por HTTPS; secretos en <code>.env</code> fuera de git. <b>Probado:</b> 32 verificaciones en <code>db/pruebas/permisos.sql</code> y 31 pruebas de la app.</li>
   <li><b>Con más tiempo:</b> segundo factor para la dueña, bitácora de quién cambió qué, respaldos diarios cifrados, límite de intentos por IP.</li>
 </ul>
 </div>

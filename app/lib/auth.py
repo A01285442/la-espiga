@@ -87,14 +87,18 @@ def requerir_rol(*roles: str) -> dict:
 
 
 def pantalla_login() -> None:
-    st.title("🥐 La Espiga Dorada")
-    with st.form("login"):
-        usuario = st.text_input("Usuario")
-        password = st.text_input("Contraseña", type="password")
-        entrar = st.form_submit_button("Entrar", type="primary", use_container_width=True)
-    if entrar:
-        error = iniciar_sesion(usuario, password)
-        if error:
-            st.error(error)
-        else:
-            st.rerun()
+    _, centro, _ = st.columns([1, 1.1, 1])
+    with centro:
+        st.space("large")
+        st.title("La Espiga Dorada")
+        st.caption("Control de operación · inicia sesión para continuar")
+        with st.form("login"):
+            usuario = st.text_input("Usuario")
+            password = st.text_input("Contraseña", type="password")
+            entrar = st.form_submit_button("Entrar", type="primary", width="stretch")
+        if entrar:
+            error = iniciar_sesion(usuario, password)
+            if error:
+                st.error(error)
+            else:
+                st.rerun()

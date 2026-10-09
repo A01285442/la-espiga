@@ -9,13 +9,12 @@ from sqlalchemy.exc import DBAPIError
 from lib.auth import requerir_rol
 from lib.db import ejecutar, leer, mensaje_error
 from lib.formato import MESES, hoy, md, pesos
+from lib.ui import aviso, encabezado
 
 requerir_rol("duena")
 
-st.title("📊 Resumen")
-
-if aviso := st.session_state.pop("res_aviso", None):
-    st.success(md(aviso))
+encabezado("Resumen", "Lo que requiere atención y cómo van las ventas del mes.")
+aviso("res_aviso")
 
 # ---------------------------------------------------------------------
 # Avisos: lo que requiere atención hoy
@@ -30,16 +29,16 @@ por_pedir = leer("SELECT nombre, cantidad, minimo, unidad, proveedor FROM v_insu
 
 avisos = st.container()
 if vencido.n:
-    avisos.error(md(f"💳 **{int(vencido.n)} clientes de crédito** te deben **{pesos(vencido.v)}** ya vencido. "
-                    "Ve a *Clientes de crédito* para ver a quién cobrar."))
+    avisos.error(md(f"**{int(vencido.n)} clientes de crédito** te deben **{pesos(vencido.v)}** ya vencido. "
+                    "Ve a *Crédito* para ver a quién cobrar."), icon=":material/account_balance_wallet:")
 if atrasados:
-    avisos.warning(f"🎂 {atrasados} encargo(s) atrasados sin entregar.")
+    avisos.warning(f"{atrasados} encargo(s) atrasados sin entregar.", icon=":material/cake:")
 if manana:
-    avisos.info(f"🌙 Mañana salen {manana} encargo(s).")
+    avisos.info(f"Mañana salen {manana} encargo(s). Están en Encargos → Urgentes.", icon=":material/event:")
 if not por_pedir.empty:
-    avisos.warning("🛒 **Insumos por pedir** (están en el mínimo o abajo):  \n" + "  \n".join(
-        f"• {i.nombre}: quedan {i.cantidad:g} {i.unidad} (mínimo {i.minimo:g})"
-        + (f" — {i.proveedor}" if i.proveedor else "") for i in por_pedir.itertuples()))
+    avisos.warning("**Insumos por pedir** (están en el mínimo o abajo):  \n" + "  \n".join(
+        f"- {i.nombre}: quedan {i.cantidad:g} {i.unidad} (mínimo {i.minimo:g})"
+        + (f" — {i.proveedor}" if i.proveedor else "") for i in por_pedir.itertuples()), icon=":material/inventory_2:")
 
 # ---------------------------------------------------------------------
 # Ventas del mes
@@ -55,7 +54,7 @@ meses = leer("""
 con_ventas = leer("SELECT max(fecha) AS f FROM ventas").f[0]
 default = meses.index(date(con_ventas.year, con_ventas.month, 1)) if con_ventas else 0
 
-mes = st.selectbox("Mes", meses, index=default, format_func=lambda m: f"{MESES[m.month - 1].capitalize()} {m.year}")
+mes = st.selectbox("Mes", meses, index=default, width=240, format_func=lambda m: f"{MESES[m.month - 1].capitalize()} {m.year}")
 fin = date(mes.year + mes.month // 12, mes.month % 12 + 1, 1)
 
 cifras = leer("""
@@ -74,20 +73,20 @@ vendido = cifras.mostrador + cifras.encargos + cifras.credito
 
 st.subheader(f"Lo que se vendió en {MESES[mes.month - 1]}")
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Total vendido", pesos(vendido))
-c2.metric("Mostrador", pesos(cifras.mostrador))
-c3.metric("Pasteles por encargo", pesos(cifras.encargos))
-c4.metric("Negocios a crédito", pesos(cifras.credito))
+c1.metric("Total vendido", pesos(vendido), border=True)
+c2.metric("Mostrador", pesos(cifras.mostrador), border=True)
+c3.metric("Pasteles por encargo", pesos(cifras.encargos), border=True)
+c4.metric("Negocios a crédito", pesos(cifras.credito), border=True)
 
 c1, c2, c3 = st.columns(3)
-c1.metric("Compras", pesos(cifras.compras))
-c2.metric("Ventas menos compras", pesos(vendido - cifras.compras),
+c1.metric("Compras", pesos(cifras.compras), border=True)
+c2.metric("Ventas menos compras", pesos(vendido - cifras.compras), border=True,
           help="No es la ganancia: faltan sueldos, renta, luz y lo que quedó en bodega.")
 if cifras.compras_duplicadas:
-    c3.metric("Compras por revisar", pesos(cifras.compras_duplicadas),
+    c3.metric("Compras por revisar", pesos(cifras.compras_duplicadas), border=True,
               help="Tickets que parecen repetidos (mismo proveedor, mismo día o el siguiente, monto parecido).")
 if cifras.dias_incompletos:
-    st.caption(f"⚠️ {int(cifras.dias_incompletos)} día(s) con captura incompleta (se fue la luz): "
+    st.caption(f"{int(cifras.dias_incompletos)} día(s) con captura incompleta (se fue la luz): "
                "la venta real de mostrador fue mayor.")
 
 diario = leer("SELECT fecha, total FROM v_ventas_diarias WHERE fecha >= :i AND fecha < :f ORDER BY fecha",
@@ -95,7 +94,7 @@ diario = leer("SELECT fecha, total FROM v_ventas_diarias WHERE fecha >= :i AND f
 if not diario.empty:
     st.markdown("**Venta de mostrador por día**")
     st.bar_chart(diario.assign(Día=pd.to_datetime(diario.fecha)).set_index("Día").total.rename("Venta"),
-                 color="#b5651d", height=260)
+                 color="#7a4a26", height=260)
 
 # ---------------------------------------------------------------------
 # Qué se vende más
@@ -109,7 +108,7 @@ if not productos.empty:
         "Piezas / kg": productos.cantidad.map(lambda x: f"{x:g}"),
         "Venta": productos.total.map(pesos),
         "% de la venta": (productos.total / productos.total.sum()).map(lambda x: f"{x:.0%}"),
-    }), hide_index=True, use_container_width=True)
+    }), hide_index=True, width="stretch")
     st.caption("Para saber cuánto deja cada producto (no solo cuánto se vende) hacen falta las recetas: "
                "es lo siguiente que haríamos con Toño y Memo.")
 
@@ -132,12 +131,12 @@ hoy_ventas = leer("""
 if hoy_ventas.empty:
     st.caption("Todavía no hay ventas capturadas hoy.")
 else:
-    st.metric("Vendido hoy en mostrador", pesos(hoy_ventas.total.sum()))
+    st.metric("Vendido hoy en mostrador", pesos(hoy_ventas.total.sum()), border=True, width=280)
     st.dataframe(pd.DataFrame({
         "#": hoy_ventas.id, "Hora": hoy_ventas.hora, "Capturó": hoy_ventas.quien,
         "Qué": hoy_ventas.que, "Total": hoy_ventas.total.map(pesos),
         "Nota": hoy_ventas.nota.fillna("") + hoy_ventas.captura_incompleta.map({True: " (incompleta)", False: ""}),
-    }), hide_index=True, use_container_width=True)
+    }), hide_index=True, width="stretch")
     with st.expander("Borrar una venta capturada por error"):
         venta = st.selectbox("Venta", hoy_ventas.id.tolist(),
                              format_func=lambda i: f"#{i} · " + hoy_ventas.set_index("id").que[i])

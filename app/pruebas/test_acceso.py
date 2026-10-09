@@ -13,7 +13,7 @@ PWD = {"carmen": os.environ.get("PWD_CARMEN"), "lupita": os.environ.get("PWD_LUP
 
 
 def login(usuario: str, password: str) -> AppTest:
-    at = AppTest.from_file("Inicio.py", default_timeout=30).run()
+    at = AppTest.from_file("../Inicio.py", default_timeout=30).run()
     at.text_input[0].input(usuario)
     at.text_input[1].input(password)
     at.button[0].click().run()
@@ -51,7 +51,7 @@ def test_bloqueo_tras_cinco_intentos():
 @pytest.mark.parametrize("pagina", ["paginas/credito.py", "paginas/compras.py", "paginas/resumen.py"])
 def test_mostrador_no_abre_paginas_de_dueña(pagina):
     """Simula entrar directo al archivo de la página con sesión de mostrador."""
-    at = AppTest.from_file(pagina, default_timeout=30)
+    at = AppTest.from_file(f"../{pagina}", default_timeout=30)
     at.session_state["usuario"] = {"id": 2, "nombre": "Lupita", "rol": "mostrador"}
     at.run()
     assert at.error[0].value == "No tienes acceso a esta sección."
@@ -60,5 +60,5 @@ def test_mostrador_no_abre_paginas_de_dueña(pagina):
 
 @pytest.mark.parametrize("pagina", ["paginas/credito.py", "paginas/encargos.py"])
 def test_sin_sesion_no_abre_nada(pagina):
-    at = AppTest.from_file(pagina, default_timeout=30).run()
+    at = AppTest.from_file(f"../{pagina}", default_timeout=30).run()
     assert at.error[0].value == "No tienes acceso a esta sección."

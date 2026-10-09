@@ -1,12 +1,15 @@
 """Encargos de pasteles: alta con anticipo, cobro del saldo y entrega."""
 
+from urllib.parse import quote
+
 import streamlit as st
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from lib.auth import requerir_rol
 from lib.db import leer, mensaje_error, transaccion
-from lib.formato import ESTADOS, cuando, fecha_corta, hoy, manana, md, normalizar, pesos, telefono
+from lib.formato import ESTADOS, cuando, fecha_corta, fecha_larga, hoy, manana, md, normalizar, pesos, telefono
+from lib.ui import aviso, encabezado, subpestanas
 
 usuario = requerir_rol("duena", "mostrador")
 es_duena = usuario["rol"] == "duena"
@@ -16,11 +19,8 @@ CLIENTE_NUEVO = -1
 CAMPOS_NUEVO = ["enc_cliente", "enc_nombre", "enc_tel", "enc_entrega", "enc_desc",
                 "enc_total", "enc_anticipo", "enc_metodo", "enc_confirma_nuevo"]
 
-st.title("🎂 Encargos")
-
-# Mensaje de la acción anterior (sobrevive al st.rerun)
-if aviso := st.session_state.pop("enc_aviso", None):
-    st.success(md(aviso))
+encabezado("Encargos", "Pasteles por encargo: lo urgente, lo que falta entregar y el historial.")
+aviso("enc_aviso")
 
 
 def guardar_y_recargar(aviso: str, sentencias: list[tuple[str, dict]], mantener_abierto: int | None = None) -> None:
@@ -43,11 +43,70 @@ def guardar_y_recargar(aviso: str, sentencias: list[tuple[str, dict]], mantener_
     st.rerun()
 
 
-# st.tabs se reinicia a la primera pestaña cuando cambia lo que hay arriba (p. ej. un aviso);
-# un radio con key conserva la vista elegida entre recargas.
-POR_ENTREGAR, NUEVO, TODOS = "📋 Por entregar", "➕ Nuevo encargo", "🗂️ Todos"
-vista = st.radio("Vista", [POR_ENTREGAR, NUEVO, TODOS], horizontal=True,
-                 label_visibility="collapsed", key="enc_vista")
+URGENTES, POR_ENTREGAR, NUEVO, TODOS = "Urgentes", "Por entregar", "Nuevo encargo", "Historial"
+vista = subpestanas([URGENTES, POR_ENTREGAR, NUEVO, TODOS], key="enc_vista")
+
+
+def abrir(encargo_id: int) -> None:
+    """Desde Urgentes: ir a Por entregar con el encargo abierto (callback, antes de dibujar)."""
+    st.session_state["enc_vista"] = POR_ENTREGAR
+    st.session_state["enc_abierto"] = encargo_id
+    st.session_state.pop("tabla_pendientes", None)
+
+
+# ---------------------------------------------------------------------
+# Urgentes: atrasados, hoy y mañana (lo que Toño tiene que hornear)
+# ---------------------------------------------------------------------
+if vista == URGENTES:
+    pendientes = leer("""
+        SELECT id, cliente, descripcion, estado, saldo, fecha_entrega, requiere_revision
+        FROM v_encargos
+        WHERE estado IN ('pendiente', 'listo') AND fecha_entrega <= :m
+        ORDER BY fecha_entrega, id""", m=manana())
+    grupos = [
+        ("Atrasados", "Ya pasó la fecha y no se han marcado como entregados.", pendientes.fecha_entrega < hoy()),
+        ("Hoy", fecha_larga(hoy()), pendientes.fecha_entrega == hoy()),
+        ("Mañana", fecha_larga(manana()), pendientes.fecha_entrega == manana()),
+    ]
+    for col, (titulo, _, filtro) in zip(st.columns(3), grupos):
+        col.metric(titulo, int(filtro.sum()), border=True)
+
+    for titulo, detalle, filtro in grupos:
+        grupo = pendientes[filtro]
+        if titulo == "Atrasados" and grupo.empty:
+            continue
+        st.subheader(titulo)
+        st.caption(detalle.capitalize())
+        if grupo.empty:
+            st.caption("Sin encargos.")
+        for e in grupo.itertuples():
+            with st.container(border=True, horizontal=True, vertical_alignment="center"):
+                pago = "pagado" if e.saldo <= 0 else f"falta cobrar {pesos(e.saldo)}"
+                revisar = " · revisar con Carmen" if e.requiere_revision else ""
+                st.markdown(md(f"**{e.descripcion}**  \n{e.cliente} · #{e.id} · {pago}{revisar}"), width="stretch")
+                if e.estado == "listo":
+                    st.badge("Listo", color="green")
+                st.button("Abrir", key=f"urg_abrir_{e.id}", icon=":material/open_in_new:",
+                          on_click=abrir, args=(int(e.id),))
+
+    # Lista para el panadero: por default la de mañana
+    st.subheader("Lista para Toño")
+    dia = st.date_input("Día", value=manana(), format="DD/MM/YYYY", key="urg_dia", width=220)
+    del_dia = leer("""
+        SELECT id, cliente, descripcion FROM v_encargos
+        WHERE fecha_entrega = :d AND estado IN ('pendiente', 'listo') ORDER BY id""", d=dia)
+    if del_dia.empty:
+        st.caption("No hay encargos pendientes para ese día.")
+    else:
+        lista = "\n".join(f"{n}. {e.descripcion} ({e.cliente})" for n, e in enumerate(del_dia.itertuples(), 1))
+        mensaje = f"Encargos para {fecha_larga(dia)}:\n{lista}"
+        st.code(mensaje, language=None, wrap_lines=True)
+        with st.container(horizontal=True):
+            # wa.me abre WhatsApp con el mensaje escrito; quien lo manda elige a Toño. Sin costo ni API.
+            st.link_button("Mandar por WhatsApp", f"https://wa.me/?text={quote(mensaje)}",
+                           icon=":material/send:", type="primary")
+            st.download_button("Descargar lista", mensaje, file_name=f"encargos_{dia:%Y-%m-%d}.txt",
+                               icon=":material/download:", on_click="ignore")
 
 # ---------------------------------------------------------------------
 # Por entregar
@@ -60,26 +119,26 @@ if vista == POR_ENTREGAR:
 
     atrasados = (pendientes.fecha_entrega < hoy()).sum()
     c1, c2, c3 = st.columns(3)
-    c1.metric("Para hoy", int((pendientes.fecha_entrega == hoy()).sum()))
-    c2.metric("Para mañana", int((pendientes.fecha_entrega == manana()).sum()))
-    c3.metric("Atrasados", int(atrasados))
+    c1.metric("Para hoy", int((pendientes.fecha_entrega == hoy()).sum()), border=True)
+    c2.metric("Para mañana", int((pendientes.fecha_entrega == manana()).sum()), border=True)
+    c3.metric("Atrasados", int(atrasados), border=True)
     if atrasados:
         st.warning(f"Hay {atrasados} encargo(s) con fecha de entrega pasada que no se han marcado como entregados.")
 
     if pendientes.empty:
         st.info("No hay encargos pendientes. Los nuevos aparecen aquí.")
     else:
-        vista = pendientes.assign(
+        tabla = pendientes.assign(
             Cuándo=pendientes.fecha_entrega.map(cuando),
             Entrega=pendientes.fecha_entrega.map(fecha_corta),
             Estado=pendientes.estado.map(ESTADOS),
             Total=pendientes.total.map(pesos),
-            Saldo=pendientes.saldo.map(lambda s: pesos(s) if s > 0 else "✅ Pagado"),
+            Saldo=pendientes.saldo.map(lambda s: pesos(s) if s > 0 else "Pagado"),
         ).rename(columns={"id": "#", "cliente": "Cliente", "descripcion": "Pedido"})
         st.caption("Toca un renglón para cobrar, marcar listo o entregar.")
         evento = st.dataframe(
-            vista[["#", "Cuándo", "Entrega", "Cliente", "Pedido", "Total", "Saldo", "Estado"]],
-            hide_index=True, use_container_width=True,
+            tabla[["#", "Cuándo", "Entrega", "Cliente", "Pedido", "Total", "Saldo", "Estado"]],
+            hide_index=True, width="stretch",
             on_select="rerun", selection_mode="single-row", key="tabla_pendientes",
         )
 
@@ -90,23 +149,24 @@ if vista == POR_ENTREGAR:
         if not abierto.empty:
             enc = abierto.iloc[0]
             saldo = float(enc.saldo)
-            st.divider()
-            titulo, cerrar = st.columns([5, 1])
+            detalle = st.container(border=True)
+            titulo, cerrar = detalle.columns([5, 1], vertical_alignment="center")
             titulo.subheader(f"Encargo #{enc.id} · {enc.cliente}")
-            if cerrar.button("✖ Cerrar", key=f"cerrar_{enc.id}"):
+            if cerrar.button("Cerrar", key=f"cerrar_{enc.id}", icon=":material/close:", type="tertiary"):
                 st.session_state["enc_abierto"] = None
                 st.session_state.pop("tabla_pendientes", None)
                 st.rerun()
-            st.write(md(f"**{enc.descripcion}**"))
-            st.write(f"Entrega: {fecha_corta(enc.fecha_entrega)} · Tel. {enc.telefono or 'sin teléfono'}")
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Total", pesos(enc.total))
-            m2.metric("Pagado", pesos(enc.pagado))
-            m3.metric("Falta", pesos(saldo))
+            detalle.markdown(md(f"**{enc.descripcion}**"))
+            detalle.caption(f"Entrega: {fecha_corta(enc.fecha_entrega)} · {ESTADOS[enc.estado]} · "
+                            f"Tel. {enc.telefono or 'sin teléfono'}")
+            m1, m2, m3 = detalle.columns(3)
+            m1.metric("Total", pesos(enc.total), border=True)
+            m2.metric("Pagado", pesos(enc.pagado), border=True)
+            m3.metric("Falta", pesos(saldo), border=True)
             if enc.requiere_revision:
-                st.warning(md(f"Revisar con Carmen: {enc.nota_revision}"))
+                detalle.warning(md(f"Revisar con Carmen: {enc.nota_revision}"), icon=":material/flag:")
 
-            col_pago, col_estado = st.columns(2)
+            col_pago, col_estado = detalle.columns(2, gap="large")
             with col_pago:
                 st.markdown("**Registrar pago**")
                 if saldo <= 0:
@@ -115,7 +175,7 @@ if vista == POR_ENTREGAR:
                     monto = st.number_input("Monto", min_value=0.0, max_value=saldo, value=saldo,
                                             step=10.0, key=f"pago_monto_{enc.id}")
                     metodo = st.selectbox("Forma de pago", list(METODOS), key=f"pago_metodo_{enc.id}")
-                    if st.button("💵 Registrar pago", key=f"pagar_{enc.id}", disabled=monto <= 0):
+                    if st.button("Registrar pago", icon=":material/payments:", key=f"pagar_{enc.id}", disabled=monto <= 0):
                         guardar_y_recargar(
                             f"Pago de {pesos(monto)} registrado en el encargo #{enc.id}.",
                             [("""INSERT INTO pagos_encargo (encargo_id, monto, tipo, metodo, registrado_por)
@@ -126,14 +186,14 @@ if vista == POR_ENTREGAR:
 
             with col_estado:
                 st.markdown("**Estado**")
-                if enc.estado == "pendiente" and st.button("👌 Marcar como listo", key=f"listo_{enc.id}"):
+                if enc.estado == "pendiente" and st.button("Marcar como listo", icon=":material/check:", key=f"listo_{enc.id}"):
                     guardar_y_recargar(f"Encargo #{enc.id} listo.", [
                         ("UPDATE encargos SET estado = 'listo' WHERE id = :e", {"e": int(enc.id)})],
                         mantener_abierto=int(enc.id))
 
                 con_saldo = saldo > 0 and st.checkbox(
                     f"Entregar aunque falten {pesos(saldo)}", key=f"con_saldo_{enc.id}")
-                if st.button("📦 Entregado al cliente", key=f"entregar_{enc.id}", type="primary",
+                if st.button("Entregado al cliente", key=f"entregar_{enc.id}", type="primary", icon=":material/done_all:",
                              disabled=saldo > 0 and not con_saldo):
                     guardar_y_recargar(f"Encargo #{enc.id} entregado.", [
                         ("UPDATE encargos SET estado = 'entregado', entregado_en = now() WHERE id = :e",
@@ -166,7 +226,7 @@ if vista == NUEVO:
             st.session_state.pop(campo, None)
 
     clientes = leer("SELECT id, nombre, telefono FROM clientes ORDER BY nombre")
-    etiquetas = {CLIENTE_NUEVO: "➕ Cliente nuevo"} | {
+    etiquetas = {CLIENTE_NUEVO: "Cliente nuevo (dar de alta)"} | {
         r.id: f"{r.nombre} · {r.telefono}" if r.telefono else r.nombre for r in clientes.itertuples()}
 
     cliente_id = st.selectbox("Cliente", list(etiquetas), format_func=etiquetas.get, index=None,
@@ -186,7 +246,7 @@ if vista == NUEVO:
         parecidos = clientes[(mismo_nombre & (len(nombre_nuevo) >= 3)) | (mismo_tel & bool(tel_nuevo))]
         if not parecidos.empty:
             st.warning("¿Es alguno de estos clientes? Si sí, búscalo arriba en la lista:  \n"
-                       + "  \n".join(f"• {etiquetas[i]}" for i in parecidos.id))
+                       + "  \n".join(f"- {etiquetas[i]}" for i in parecidos.id))
             puede_guardar_cliente = st.checkbox("No, es un cliente nuevo", key="enc_confirma_nuevo")
         puede_guardar_cliente = puede_guardar_cliente and bool(nombre_nuevo) and not (tel_texto and not tel_nuevo)
 
@@ -265,5 +325,5 @@ if vista == TODOS:
             Revisar=todos.nota_revision.fillna(""),
         ).rename(columns={"id": "#", "cliente": "Cliente", "descripcion": "Pedido"})
         [["#", "Entrega", "Cliente", "Pedido", "Total", "Pagado", "Saldo", "Estado", "Revisar"]],
-        hide_index=True, use_container_width=True,
+        hide_index=True, width="stretch",
     )

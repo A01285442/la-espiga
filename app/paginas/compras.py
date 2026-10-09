@@ -10,16 +10,15 @@ from sqlalchemy.exc import DBAPIError
 from lib.auth import requerir_rol
 from lib.db import leer, mensaje_error, transaccion
 from lib.formato import MESES, fecha_corta, hoy, md, pesos
+from lib.ui import aviso, encabezado, encabezado_tabla, fila, subpestanas
 
 usuario = requerir_rol("duena")
 
-FACTURA = {"facturada": "✅ Facturada", "por_pedir": "📄 Pedir factura",
-           "sin_factura": "— Sin factura", "sin_dato": "❔ Sin dato"}
+FACTURA = {"facturada": "Facturada", "por_pedir": "Pedir factura",
+           "sin_factura": "Sin factura", "sin_dato": "Sin dato"}
 
-st.title("🛒 Compras e insumos")
-
-if aviso := st.session_state.pop("com_aviso", None):
-    st.success(md(aviso))
+encabezado("Compras", "Tickets de compra, facturas pendientes e insumos en bodega.")
+aviso("com_aviso")
 
 
 def guardar_y_recargar(aviso: str, sentencias: list[tuple[str, dict]]) -> None:
@@ -34,19 +33,19 @@ def guardar_y_recargar(aviso: str, sentencias: list[tuple[str, dict]]) -> None:
     st.rerun()
 
 
-COMPRAS, INSUMOS = "🧾 Compras", "📦 Insumos en bodega"
-vista = st.radio("Vista", [COMPRAS, INSUMOS], horizontal=True, label_visibility="collapsed", key="com_vista")
+GASTO, REVISAR, REGISTRAR, BODEGA = "Gasto del mes", "Por revisar", "Registrar ticket", "Bodega"
+vista = subpestanas([GASTO, REVISAR, REGISTRAR, BODEGA], key="com_vista")
 
 # ---------------------------------------------------------------------
-# Compras
+# Gasto del mes
 # ---------------------------------------------------------------------
-if vista == COMPRAS:
+if vista == GASTO:
     meses = leer("""SELECT DISTINCT date_trunc('month', f)::date AS mes
                     FROM (SELECT fecha AS f FROM compras UNION ALL SELECT current_date) x
                     ORDER BY mes DESC""").mes.tolist()
     ultima = leer("SELECT max(fecha) AS f FROM compras").f[0]
     default = meses.index(date(ultima.year, ultima.month, 1)) if ultima else 0
-    mes = st.selectbox("Mes", meses, index=default,
+    mes = st.selectbox("Mes", meses, index=default, width=240,
                        format_func=lambda m: f"{MESES[m.month - 1].capitalize()} {m.year}")
     fin = date(mes.year + mes.month // 12, mes.month % 12 + 1, 1)
 
@@ -60,64 +59,97 @@ if vista == COMPRAS:
     compras = compras.astype({"total": float, "incluye_gastos_personales": bool, "posible_duplicado": bool})
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Gastado en el mes", pesos(compras.total.sum()))
-    c2.metric("Facturas por pedir", int((compras.estado_factura == "por_pedir").sum()))
-    c3.metric("Con cosas de la casa", int(compras.incluye_gastos_personales.sum()),
+    c1.metric("Gastado en el mes", pesos(compras.total.sum()), border=True)
+    c2.metric("Facturas por pedir", int((compras.estado_factura == "por_pedir").sum()), border=True)
+    c3.metric("Con cosas de la casa", int(compras.incluye_gastos_personales.sum()), border=True,
               help="El contador advirtió que esos tickets no deberían facturarse completos a la panadería.")
-    c4.metric("Posibles duplicados", int(compras.posible_duplicado.sum()))
+    c4.metric("Posibles duplicados", int(compras.posible_duplicado.sum()), border=True)
 
-    # --- Por revisar: duplicados ---
-    duplicados = compras[compras.posible_duplicado]
-    if not duplicados.empty:
-        st.subheader("🔎 ¿Se apuntaron dos veces?")
-        st.caption("Mismo proveedor, mismo día o el siguiente y monto parecido. Revisa el ticket y decide.")
-        for d in duplicados.itertuples():
-            col_txt, col_ok, col_borrar = st.columns([4, 1, 1])
-            col_txt.markdown(md(f"**{d.proveedor}** · {fecha_corta(d.fecha)} · **{pesos(d.total)}** — {d.descripcion}"))
-            if col_ok.button("Es correcto", key=f"dup_ok_{d.id}"):
-                guardar_y_recargar(f"Ticket de {d.proveedor} por {pesos(d.total)} confirmado.", [
-                    ("UPDATE compras SET posible_duplicado = false WHERE id = :c", {"c": int(d.id)})])
-            if col_borrar.button("Borrar", key=f"dup_borrar_{d.id}"):
-                guardar_y_recargar(f"Ticket repetido de {d.proveedor} por {pesos(d.total)} borrado.", [
-                    ("DELETE FROM compras WHERE id = :c", {"c": int(d.id)})])
-
-    # --- Facturas por pedir ---
-    por_pedir = compras[compras.estado_factura == "por_pedir"]
-    if not por_pedir.empty:
-        st.subheader("📄 Facturas por pedir")
-        for f in por_pedir.itertuples():
-            col_txt, col_btn = st.columns([5, 1])
-            col_txt.markdown(md(f"**{f.proveedor}** · {fecha_corta(f.fecha)} · {pesos(f.total)} — {f.descripcion}"))
-            if col_btn.button("Ya la tengo", key=f"fact_{f.id}"):
-                guardar_y_recargar(f"Factura de {f.proveedor} marcada como recibida.", [
-                    ("UPDATE compras SET estado_factura = 'facturada' WHERE id = :c", {"c": int(f.id)})])
-
-    # --- Por proveedor y detalle ---
-    if not compras.empty:
-        st.subheader("¿En qué se fue el dinero?")
-        por_proveedor = (compras.groupby("proveedor").total.agg(["sum", "count"])
-                         .sort_values("sum", ascending=False).reset_index())
-        st.dataframe(pd.DataFrame({
-            "Proveedor": por_proveedor.proveedor,
-            "Tickets": por_proveedor["count"],
-            "Total": por_proveedor["sum"].map(pesos),
-            "% del gasto": (por_proveedor["sum"] / por_proveedor["sum"].sum()).map(lambda x: f"{x:.0%}"),
-        }), hide_index=True, use_container_width=True)
-        st.caption("Los tickets no dicen cuánto fue de harina, huevo o mantequilla: para el costo por producto "
-                   "habría que capturar el detalle de cada ticket (segunda etapa).")
-
-        with st.expander(f"Ver los {len(compras)} tickets del mes"):
+    if compras.empty:
+        st.caption("No hay compras registradas en este mes.")
+    else:
+        col_prov, col_tickets = st.columns([2, 3], gap="large")
+        with col_prov:
+            st.subheader("En qué se fue el dinero")
+            por_proveedor = (compras.groupby("proveedor").total.agg(["sum", "count"])
+                             .sort_values("sum", ascending=False).reset_index())
+            st.dataframe(pd.DataFrame({
+                "Proveedor": por_proveedor.proveedor,
+                "Tickets": por_proveedor["count"],
+                "Total": por_proveedor["sum"].map(pesos),
+                "% del gasto": (por_proveedor["sum"] / por_proveedor["sum"].sum()).map(lambda x: f"{x:.0%}"),
+            }), hide_index=True, width="stretch")
+            st.caption("Los tickets no dicen cuánto fue de harina, huevo o mantequilla: para el costo por "
+                       "producto habría que capturar el detalle de cada ticket (segunda etapa).")
+        with col_tickets:
+            st.subheader(f"Tickets del mes ({len(compras)})")
             st.dataframe(pd.DataFrame({
                 "Fecha": compras.fecha.map(fecha_corta), "Proveedor": compras.proveedor,
                 "Total": compras.total.map(pesos), "Qué se compró": compras.descripcion,
                 "Factura": compras.estado_factura.map(FACTURA),
-                "Casa": compras.incluye_gastos_personales.map({True: "⚠️ Sí", False: ""}),
-            }), hide_index=True, use_container_width=True)
+                "Casa": compras.incluye_gastos_personales.map({True: "Sí", False: ""}),
+                "Revisar": compras.posible_duplicado.map({True: "Posible duplicado", False: ""}),
+            }), hide_index=True, width="stretch", height=420)
 
-    # --- Nueva compra ---
-    st.subheader("➕ Registrar ticket")
+# ---------------------------------------------------------------------
+# Por revisar: posibles duplicados y facturas por pedir (de todos los meses)
+# ---------------------------------------------------------------------
+if vista == REVISAR:
+    pendientes = leer("""
+        SELECT c.id, c.fecha, p.nombre AS proveedor, c.total, c.descripcion, c.estado_factura,
+               c.posible_duplicado
+        FROM compras c JOIN proveedores p ON p.id = c.proveedor_id
+        WHERE c.posible_duplicado OR c.estado_factura = 'por_pedir'
+        ORDER BY c.fecha, c.id""")
+    duplicados = pendientes[pendientes.posible_duplicado.astype(bool)]
+    por_pedir = pendientes[pendientes.estado_factura == "por_pedir"]
+
+    c1, c2 = st.columns(2)
+    c1.metric("Posibles duplicados", len(duplicados), border=True)
+    c2.metric("Facturas por pedir", len(por_pedir), border=True)
+
+    ANCHOS = [1, 2, 1, 3.2, 1.1, 1.1]
+    st.subheader("¿Se apuntaron dos veces?")
+    st.caption("Mismo proveedor, mismo día o el siguiente y monto parecido. Revisa el ticket y decide.")
+    if duplicados.empty:
+        st.caption("Nada por revisar.")
+    else:
+        encabezado_tabla("duplicados", ["Fecha", "Proveedor", "Total", "Qué se compró", "", ""], ANCHOS)
+    for d in duplicados.itertuples():
+        col = fila(f"dup_{d.id}", ANCHOS)
+        col[0].markdown(fecha_corta(d.fecha))
+        col[1].markdown(md(f"**{d.proveedor}**"))
+        col[2].markdown(md(pesos(d.total)))
+        col[3].markdown(md(d.descripcion or "—"))
+        if col[4].button("Es correcto", key=f"dup_ok_{d.id}", width="stretch"):
+            guardar_y_recargar(f"Ticket de {d.proveedor} por {pesos(d.total)} confirmado.", [
+                ("UPDATE compras SET posible_duplicado = false WHERE id = :c", {"c": int(d.id)})])
+        if col[5].button("Borrar", key=f"dup_borrar_{d.id}", icon=":material/delete:", width="stretch"):
+            guardar_y_recargar(f"Ticket repetido de {d.proveedor} por {pesos(d.total)} borrado.", [
+                ("DELETE FROM compras WHERE id = :c", {"c": int(d.id)})])
+
+    st.subheader("Facturas por pedir")
+    if por_pedir.empty:
+        st.caption("No hay facturas pendientes.")
+    else:
+        encabezado_tabla("facturas", ["Fecha", "Proveedor", "Total", "Qué se compró", "", ""], ANCHOS)
+    for f in por_pedir.itertuples():
+        col = fila(f"fact_{f.id}", ANCHOS)
+        col[0].markdown(fecha_corta(f.fecha))
+        col[1].markdown(md(f"**{f.proveedor}**"))
+        col[2].markdown(md(pesos(f.total)))
+        col[3].markdown(md(f.descripcion or "—"))
+        if col[4].button("Ya la tengo", key=f"fact_{f.id}", icon=":material/check:", width="stretch"):
+            guardar_y_recargar(f"Factura de {f.proveedor} marcada como recibida.", [
+                ("UPDATE compras SET estado_factura = 'facturada' WHERE id = :c", {"c": int(f.id)})])
+
+# ---------------------------------------------------------------------
+# Registrar ticket
+# ---------------------------------------------------------------------
+if vista == REGISTRAR:
     proveedores = leer("SELECT id, nombre FROM proveedores ORDER BY nombre")
-    with st.form("nueva_compra", clear_on_submit=True):
+    with st.form("nueva_compra", clear_on_submit=True, width=720):
+        st.subheader("Nuevo ticket de compra")
         c1, c2, c3 = st.columns(3)
         fecha = c1.date_input("Fecha", value=hoy(), max_value=hoy(), format="DD/MM/YYYY")
         proveedor = c2.selectbox("Dónde", proveedores.id.tolist(),
@@ -141,7 +173,7 @@ if vista == COMPRAS:
 # ---------------------------------------------------------------------
 # Insumos
 # ---------------------------------------------------------------------
-if vista == INSUMOS:
+if vista == BODEGA:
     insumos = leer("""
         SELECT i.id, i.nombre, i.unidad, i.cantidad, i.minimo, pr.nombre AS proveedor, i.nota, i.actualizado_en
         FROM insumos i LEFT JOIN proveedores pr ON pr.id = i.proveedor_id
@@ -149,24 +181,24 @@ if vista == INSUMOS:
 
     def estado(i) -> str:
         if pd.isna(i.minimo):
-            return "⚪ Falta definir mínimo"
+            return "Falta definir mínimo"
         if pd.isna(i.cantidad):
-            return "⚪ No se cuenta"
-        return "🔴 Pedir" if i.cantidad <= i.minimo else "🟢 Hay"
+            return "No se cuenta"
+        return "Pedir" if i.cantidad <= i.minimo else "Hay"
 
     insumos["estado"] = [estado(i) for i in insumos.itertuples()]
-    pedir = insumos[insumos.estado == "🔴 Pedir"]
-    sin_minimo = insumos[insumos.estado == "⚪ Falta definir mínimo"]
+    pedir = insumos[insumos.estado == "Pedir"]
+    sin_minimo = insumos[insumos.estado == "Falta definir mínimo"]
 
     c1, c2, c3 = st.columns(3)
-    c1.metric("Por pedir", len(pedir))
-    c2.metric("Sin mínimo definido", len(sin_minimo))
+    c1.metric("Por pedir", len(pedir), border=True)
+    c2.metric("Sin mínimo definido", len(sin_minimo), border=True)
     ultimo = insumos.actualizado_en.max()
-    c3.metric("Última actualización", fecha_corta(ultimo.date()) if pd.notna(ultimo) else "—")
+    c3.metric("Última actualización", fecha_corta(ultimo.date()) if pd.notna(ultimo) else "—", border=True)
 
     if not pedir.empty:
         st.error(md("**Hay que pedir:**  \n" + "  \n".join(
-            f"• {p.nombre}: quedan {p.cantidad:g} {p.unidad} (mínimo {p.minimo:g})"
+            f"- {p.nombre}: quedan {p.cantidad:g} {p.unidad} (mínimo {p.minimo:g})"
             + (f" — {p.proveedor}" if p.proveedor else "") for p in pedir.itertuples())))
     if not sin_minimo.empty:
         st.caption("Sin mínimo no se puede avisar a tiempo: "
@@ -186,7 +218,7 @@ if vista == INSUMOS:
             "proveedor": st.column_config.TextColumn("Proveedor", disabled=True),
             "estado": st.column_config.TextColumn("Estado", disabled=True),
         },
-        hide_index=True, use_container_width=True, num_rows="fixed", key="com_conteo",
+        hide_index=True, width="stretch", num_rows="fixed", key="com_conteo",
     )
 
     cambios = editado[(editado.cantidad.fillna(-1) != insumos.cantidad.fillna(-1))

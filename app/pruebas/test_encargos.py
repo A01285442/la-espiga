@@ -22,8 +22,8 @@ def limpiar():
         conn.execute(text("DELETE FROM clientes WHERE nombre = :n"), {"n": CLIENTE_PRUEBA})
 
 
-def pagina_encargos(vista: str = "➕ Nuevo encargo") -> AppTest:
-    at = AppTest.from_file("paginas/encargos.py", default_timeout=30)
+def pagina_encargos(vista: str = "Nuevo encargo") -> AppTest:
+    at = AppTest.from_file("../paginas/encargos.py", default_timeout=30)
     at.session_state["usuario"] = LUPITA
     at.session_state["enc_vista"] = vista
     return at.run()
@@ -54,11 +54,25 @@ def test_alta_de_encargo_con_cliente_nuevo_y_anticipo():
     assert (fila.total, fila.pagado, fila.saldo, fila.estado) == (650, 300, 350, "pendiente")
     assert fila.telefono == "8100001111"            # se guardó normalizado
 
-    # Aparece en "Mañana sale"
-    manana = AppTest.from_file("paginas/manana.py", default_timeout=30)
-    manana.session_state["usuario"] = LUPITA
-    manana.run()
-    assert any("Pastel 3 leches 20 personas" in m.value for m in manana.markdown)
+    # Aparece en Urgentes (mañana) y en la lista para Toño
+    urgentes = pagina_encargos("Urgentes")
+    assert {m.label: m.value for m in urgentes.metric}["Mañana"] == "1"
+    assert any("Pastel 3 leches 20 personas" in m.value for m in urgentes.markdown)
+    assert "Pastel 3 leches 20 personas" in urgentes.code[0].value
+
+
+def test_abrir_desde_urgentes_lleva_al_detalle():
+    with motor("duena").begin() as conn:
+        cliente = conn.execute(text("INSERT INTO clientes (nombre) VALUES (:n) RETURNING id"),
+                               {"n": CLIENTE_PRUEBA}).scalar_one()
+        encargo = conn.execute(text("""INSERT INTO encargos (cliente_id, fecha_entrega, descripcion, total)
+                                       VALUES (:c, current_date, 'Pastel de prueba', 300) RETURNING id"""),
+                               {"c": cliente}).scalar_one()
+    at = pagina_encargos("Urgentes")
+    at.button(key=f"urg_abrir_{encargo}").click().run()
+    assert not at.exception
+    assert at.segmented_control(key="enc_vista").value == "Por entregar"
+    assert any(f"Encargo #{encargo}" in s.value for s in at.subheader)
 
 
 def test_anticipo_mayor_al_total_no_deja_guardar():

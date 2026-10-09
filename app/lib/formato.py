@@ -38,8 +38,8 @@ def cuando(d: date) -> str:
     """Etiqueta relativa a hoy para la lista de encargos."""
     dias = (d - hoy()).days
     if dias < 0:
-        return f"⚠️ Atrasado {-dias} d"
-    return {0: "🔴 Hoy", 1: "🟠 Mañana"}.get(dias, fecha_corta(d))
+        return f"Atrasado {-dias} d"
+    return {0: "Hoy", 1: "Mañana"}.get(dias, fecha_corta(d))
 
 
 def normalizar(texto: str) -> str:

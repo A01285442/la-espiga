@@ -53,7 +53,7 @@ python seed/limpiar_y_cargar.py "ruta/Panaderia_La_Espiga_Control.xlsx"
 # Permisos y reglas de la base (32 verificaciones; todo se deshace al final)
 docker compose exec -T db psql -U espiga_admin -d espiga -v ON_ERROR_STOP=1 -f - < db/pruebas/permisos.sql
 
-# App: login, acceso por rol y flujos de cada módulo contra la base real (26 pruebas)
+# App: login, acceso por rol y flujos de cada módulo contra la base real (31 pruebas)
 set -a && . ./.env && set +a
 docker compose exec -T -e PWD_CARMEN="$PWD_CARMEN" -e PWD_LUPITA="$PWD_LUPITA" app \
   python -m pytest -q -p no:cacheprovider pruebas
@@ -74,7 +74,8 @@ app/lib/db.py               conexión con el rol del usuario; errores sin detall
 app/lib/auth.py             autenticación, bloqueo por intentos, requerir_rol() por página
 app/lib/credito.py          antigüedad del saldo (los abonos pagan primero lo más viejo)
 app/lib/formato.py          pesos, fechas en español, teléfonos
-app/paginas/                resumen, credito, encargos, manana, ventas, compras
+app/lib/ui.py               estilo, encabezados, subpestañas y renglones de tabla
+app/paginas/                resumen, credito, encargos (con Urgentes), ventas (Caja), compras
 app/pruebas/                pruebas de la app (AppTest de Streamlit)
 docs/                       documento de entrega, diagrama, reporte de limpieza, acordeón Postgres↔SQL Server
 ```

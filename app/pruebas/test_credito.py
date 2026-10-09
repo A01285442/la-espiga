@@ -42,28 +42,55 @@ def test_python_cuadra_con_la_vista_sql():
 
 
 def test_pagina_de_credito_carga_para_la_dueña():
-    at = AppTest.from_file("paginas/credito.py", default_timeout=30)
+    at = AppTest.from_file("../paginas/credito.py", default_timeout=30)
     at.session_state["usuario"] = CARMEN
     at.run()
     assert not at.exception
     assert at.metric[0].label == "Te deben en total"
-    assert any("Toca cobrar" in s.value for s in at.subheader)
+    with motor("duena").connect() as conn:
+        clientes = conn.execute(text("SELECT cliente_id, saldo FROM v_saldos_credito")).all()
+    # Un botón Recordar por cliente en la tabla, apagado si no debe nada
+    for cliente_id, saldo in clientes:
+        assert at.button(key=f"recordar_{cliente_id}").disabled == (saldo <= 0)
+
+
+def test_recordar_monto_editable_no_cambia_el_saldo():
+    at = AppTest.from_file("../paginas/credito.py", default_timeout=30)
+    at.session_state["usuario"] = CARMEN
+    at.run()
+    with motor("duena").connect() as conn:
+        cliente, saldo, vencido = conn.execute(text(
+            "SELECT cliente_id, saldo, saldo_vencido FROM v_saldos_credito "
+            "ORDER BY saldo_vencido DESC LIMIT 1")).one()
+    at.button(key=f"recordar_{cliente}").click().run()
+    assert not at.exception
+    monto = at.number_input(key=f"rec_monto_{cliente}")
+    assert monto.value == float(vencido)                  # sugiere lo vencido
+    monto.set_value(500.0).run()
+    assert r"\$500" in at.text_area[0].value or "$500" in at.text_area[0].value
+    assert any("solo cambia el mensaje" in c.value for c in at.caption)
+    with motor("duena").connect() as conn:
+        despues = conn.execute(text("SELECT saldo FROM v_saldos_credito WHERE cliente_id = :c"),
+                               {"c": cliente}).scalar_one()
+    assert despues == saldo
 
 
 def test_registrar_abono_baja_el_saldo():
-    at = AppTest.from_file("paginas/credito.py", default_timeout=30)
+    at = AppTest.from_file("../paginas/credito.py", default_timeout=30)
     at.session_state["usuario"] = CARMEN
     at.run()
     cliente = at.selectbox(key="cred_cliente").value
     with motor("duena").connect() as conn:
         antes = conn.execute(text("SELECT saldo FROM v_saldos_credito WHERE cliente_id = :c"),
                              {"c": cliente}).scalar_one()
+    at.button(key="cred_pago").click().run()               # abre la ventana de pago
     at.number_input(key=f"abono_monto_{cliente}").set_value(100.0)
     next(b for b in at.button if b.label == "Guardar pago").click()
     at.run()
     try:
         assert not at.exception
         assert "registrado" in at.success[0].value
+        assert "cred_ventana" not in at.session_state      # la ventana se cerró al guardar
         with motor("duena").connect() as conn:
             despues = conn.execute(text("SELECT saldo FROM v_saldos_credito WHERE cliente_id = :c"),
                                    {"c": cliente}).scalar_one()

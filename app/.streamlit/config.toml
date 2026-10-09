@@ -12,5 +12,24 @@ fileWatcherType = "poll"
 [browser]
 gatherUsageStats = false
 
+# Tema sobrio: blanco, grises y un solo acento café
 [theme]
-primaryColor = "#b5651d"
+base = "light"
+primaryColor = "#7a4a26"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f5f4f2"
+textColor = "#1f2328"
+linkColor = "#7a4a26"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+headingFontWeights = [650, 600, 600, 600, 600, 600]
+headingFontSizes = ["1.6rem", "1.25rem", "1.05rem", "1rem", "0.95rem", "0.9rem"]
+baseFontSize = 15
+metricValueFontSize = "1.6rem"
+metricValueFontWeight = 600
+baseRadius = "0.4rem"
+buttonRadius = "0.4rem"
+borderColor = "#e4e2de"
+dataframeBorderColor = "#e4e2de"
+dataframeHeaderBackgroundColor = "#f5f4f2"
+showWidgetBorder = true
+chartCategoricalColors = ["#7a4a26", "#a8a29e", "#57534e", "#d6d3d1"]
