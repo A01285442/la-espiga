@@ -1,6 +1,6 @@
 # Reporte de limpieza del Excel
 
-Generado por `seed/limpiar_y_cargar.py` el 08/10/2026 17:04.
+Generado por `seed/limpiar_y_cargar.py` el 09/10/2026 00:23.
 
 ## Cifras de control
 
@@ -9,7 +9,7 @@ Generado por `seed/limpiar_y_cargar.py` el 08/10/2026 17:04.
 - Entregas a crédito: $26,610.
 - Total registrado en septiembre: $92,860, contra ~$180,000 que Carmen dice facturar. La diferencia es venta que nunca llegó al Excel.
 - Compras: $108,339.
-- Saldo por cliente de crédito (al día de la carga): Tienda Lupita $3,460 (vencido $3,460); Abarrotes Don Chuy $2,920 (vencido $2,920); Oxxo Mitras (Sr. Beto) $2,530 (vencido $2,530); Restaurante La Fogata $2,510 (vencido $2,230); Escuela Benito Juárez $2,240 (vencido $2,240); Cafetería El Portal $2,000 (vencido $2,000).
+- Saldo por cliente de crédito (al día de la carga): Tienda Lupita $3,460 (vencido $3,460); Abarrotes Don Chuy $2,920 (vencido $2,920); Oxxo Mitras (Sr. Beto) $2,530 (vencido $2,530); Restaurante La Fogata $2,510 (vencido $2,510); Escuela Benito Juárez $2,240 (vencido $2,240); Cafetería El Portal $2,000 (vencido $2,000).
 
 ## Ventas de mostrador
 
