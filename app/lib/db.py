@@ -36,6 +36,8 @@ def motor(rol: str):
         host=os.environ["DB_HOST"],
         port=int(os.environ["DB_PORT"]),
         database=os.environ["DB_NAME"],
+        # Neon (nube) exige SSL; en Docker local la base está en la misma red y no hace falta
+        query={"sslmode": os.environ.get("DB_SSLMODE", "prefer")},
     )
     return create_engine(url, pool_size=3, max_overflow=2, pool_pre_ping=True)
 

@@ -2,6 +2,7 @@
 
 Uso (desde la carpeta la-espiga, con `docker compose up -d` corriendo):
     python seed/limpiar_y_cargar.py "ruta/Panaderia_La_Espiga_Control.xlsx"
+    python seed/limpiar_y_cargar.py "ruta/...xlsx" --nube     # a Neon (NEON_ADMIN_URL en .env)
 
 Es repetible: borra los datos de negocio y los vuelve a cargar en una sola
 transacción. Si algo no se reconoce (un cliente o producto nuevo), truena en
@@ -535,9 +536,10 @@ def escribir_reporte():
 
 
 def main():
-    if len(sys.argv) != 2:
+    rutas = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if len(rutas) != 1:
         sys.exit(__doc__)
-    wb = openpyxl.load_workbook(sys.argv[1])
+    wb = openpyxl.load_workbook(rutas[0])
     ventas, dias_incompletos, precios = leer_ventas(wb["Ventas"])
     encargos, telefonos = leer_encargos(wb["Encargos"])
     entregas = leer_mayoristas(wb["Mayoristas"])
@@ -545,8 +547,12 @@ def main():
     insumos = leer_insumos(wb["Insumos"])
 
     env = asegurar_passwords_demo(leer_env())
-    dsn = (f"host=127.0.0.1 port=5432 dbname={env['DB_NAME']} "
-           f"user={env['DB_ADMIN_USER']} password={env['DB_ADMIN_PASSWORD']}")
+    # NEON_ADMIN_URL (en .env) carga a la base en la nube; si no existe, a la de Docker local
+    dsn = env.get("NEON_ADMIN_URL") if "--nube" in sys.argv else (
+        f"host=127.0.0.1 port=5432 dbname={env['DB_NAME']} "
+        f"user={env['DB_ADMIN_USER']} password={env['DB_ADMIN_PASSWORD']}")
+    if not dsn:
+        sys.exit("Falta NEON_ADMIN_URL en .env para cargar a la nube.")
     with psycopg.connect(dsn) as conn:   # una sola transacción: o carga todo o nada
         cargar(conn, ventas, dias_incompletos, precios, encargos, telefonos, entregas, compras, insumos, env)
 

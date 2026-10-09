@@ -1,0 +1,14 @@
+# Configuración para Streamlit Community Cloud (corre desde la raíz del repo).
+# En Docker se usa app/.streamlit/config.toml.
+[client]
+showErrorDetails = false
+toolbarMode = "minimal"
+
+[server]
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+primaryColor = "#b5651d"
