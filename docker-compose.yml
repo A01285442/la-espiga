@@ -50,5 +50,16 @@ services:
       # ngrok corre en la computadora y apunta a localhost:8501
       - "127.0.0.1:8501:8501"
 
+  # Túnel HTTPS público hacia la app (dominio fijo del plan gratis de ngrok).
+  # Solo expone la app: la base de datos nunca sale de esta computadora.
+  tunel:
+    image: ngrok/ngrok:3
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    command: ["http", "app:8501", "--url=${NGROK_DOMAIN:-green-coleslaw-perkiness.ngrok-free.dev}", "--log=stdout"]
+
 volumes:
   db_data:
